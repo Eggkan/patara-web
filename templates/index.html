@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ana Sayfa - Patara Web Platformu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+        .main-container { display: flex; height: 100vh; }
+        .left-panel { width: 380px; background-color: #f8f9fa; padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid #dee2e6; }
+        .left-panel-content { overflow-y: auto; flex-grow: 1; }
+        .right-panel { flex-grow: 1; display: flex; flex-direction: column; }
+        #map { flex-grow: 1; }
+        .button-panel { padding: 0.5rem 1rem; background-color: #e9ecef; border-bottom: 1px solid #dee2e6; }
+        .navbar { height: 56px; }
+        .list-group-item { display: flex; justify-content: space-between; align-items-center; }
+        .list-item-info { cursor: pointer; flex-grow: 1; }
+        .list-item-actions .btn { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+        .accordion-button { padding: 0.8rem 1.25rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">🐢 Patara Platformu</a>
+            <ul class="navbar-nav ms-auto"><li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Hoş Geldin, {{ current_user.kullanici_adi }}</a>
+                <ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" href="{{ url_for('logout') }}">Çıkış Yap</a></li></ul>
+            </li></ul>
+        </div>
+    </nav>
+
+    <div class="main-container" style="height: calc(100vh - 56px);">
+        <div class="left-panel">
+            <h4>Kayıtlı Yuvalar</h4>
+            <div class="d-flex mb-2">
+                <select id="aramaKriteri" class="form-select form-select-sm w-50" aria-label="Arama Kriteri"><option value="Tumu">Tüm Bilgiler</option><option value="ID">ID</option><option value="Yil">Yıl</option><option value="Kumsal">Kumsal</option></select>
+                <input type="text" id="aramaKutusu" class="form-control form-control-sm" placeholder="Aramak için yazın...">
+            </div>
+            <div class="left-panel-content list-group">
+                <p class="text-muted p-2">Veriler yükleniyor...</p>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="button-panel btn-group btn-group-sm" role="group">
+                <button class="btn btn-success" id="yuvaEkleBtn">➕ Yuva Ekle</button>
+                <button class="btn btn-info" id="ozetRaporBtn">📊 Özet Rapor</button>
+                <button class="btn btn-secondary" id="karsilastirBtn">🔄 Karşılaştır</button>
+                <button class="btn btn-warning" id="simulasyonBtn">🔮 Simülasyon</button>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- === MODALLAR BÖLÜMÜ (EKSİKSİZ) === -->
+    <div class="modal fade" id="yuvaEkleModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Yeni Yuva Kaydı</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button></div>
+                <div class="modal-body">
+                    <form id="yuvaEkleForm">
+                        <div class="accordion" id="yuvaKayitAccordion">
+                            <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true">1. Temel Bilgiler ve Konum (Zorunlu Alanlar)</button></h2><div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#yuvaKayitAccordion"><div class="accordion-body"><div class="row g-3 align-items-end"><div class="col-md-3"><label class="form-label">Yuva Sıra No (ID)*</label><input type="number" class="form-control" name="id" required></div><div class="col-md-3"><label class="form-label">Yuva Tarihi*</label><input type="date" class="form-control" name="yuva_tarihi" required></div><div class="col-md-3"><label class="form-label">Kumsal</label><input type="text" class="form-control" name="kumsal"></div><div class="col-md-3"><label class="form-label">Bölge</label><input type="text" class="form-control" name="bolge"></div><div class="col-md-5"><label class="form-label">Koordinat Kuzey (Enlem)*</label><input type="text" class="form-control" id="yuvaLat" name="lat" required></div><div class="col-md-5"><label class="form-label">Koordinat Doğu (Boylam)*</label><input type="text" class="form-control" id="yuvaLon" name="lon" required></div><div class="col-md-2"><button type="button" class="btn btn-outline-primary w-100" id="gpsBulBtn" title="Anlık Konumu Al">📍 Al</button></div></div></div></div></div>
+                            <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">2. Yuva Detayları ve Ölçümler</button></h2><div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#yuvaKayitAccordion"><div class="accordion-body"><div class="row g-3"><div class="col-md-3"><label class="form-label">Sıcaklık Aleti</label><input type="text" class="form-control" name="sicaklik_aleti"></div><div class="col-md-3"><label class="form-label">İlk Yavru Çıkış Tarihi</label><input type="date" class="form-control" name="ilk_yavru_cikis_tarihi"></div><div class="col-md-3"><label class="form-label">Kuluçka Süresi (gün)</label><input type="number" class="form-control" name="kulucka_suresi"></div><div class="col-md-3"><label class="form-label">Marka</label><input type="text" class="form-control" name="marka"></div><div class="col-md-3"><label class="form-label">Yuva Derinliği (cm)</label><input type="number" step="0.1" class="form-control" name="yuva_derinligi_cm"></div><div class="col-md-3"><label class="form-label">Yuva Çapı (cm)</label><input type="number" step="0.1" class="form-control" name="yuva_capi_cm"></div><div class="col-md-3"><label class="form-label">Taşınma Durumu</label><input type="text" class="form-control" name="tasinma_durumu"></div></div></div></div></div>
+                            <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">3. Predasyon Bilgileri</button></h2><div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#yuvaKayitAccordion"><div class="accordion-body"><p class="fw-bold">1. Predasyon</p><div class="row g-2 align-items-center"><div class="col-md-4"><label class="form-label small">Tarih</label><input type="date" class="form-control" name="predasyon_tarihi_1"></div><div class="col-md-4"><label class="form-label small">Predatör(ler)</label><input type="text" class="form-control" name="predatorler_1"></div><div class="col-md-4"><label class="form-label small">Yumurta Sayısı</label><input type="number" class="form-control" name="predasyon_yumurta_sayisi_1"></div></div><p class="fw-bold mt-3">2. Predasyon</p><div class="row g-2 align-items-center"><div class="col-md-4"><label class="form-label small">Tarih</label><input type="date" class="form-control" name="predasyon_tarihi_2"></div><div class="col-md-4"><label class="form-label small">Predatör(ler)</label><input type="text" class="form-control" name="predatorler_2"></div><div class="col-md-4"><label class="form-label small">Yumurta Sayısı</label><input type="number" class="form-control" name="predasyon_yumurta_sayisi_2"></div></div></div></div></div>
+                            <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour">4. Yuva Açım ve Sayım Sonuçları</button></h2><div id="collapseFour" class="accordion-collapse collapse" data-bs-parent="#yuvaKayitAccordion"><div class="accordion-body"><div class="row g-3"><div class="col-md-3"><label class="form-label">Toplam Yumurta</label><input type="number" class="form-control" name="toplam_yumurta_sayisi"></div><div class="col-md-3"><label class="form-label">Canlı Yavru</label><input type="number" class="form-control" name="yuva_ici_canli_yavru"></div><div class="col-md-3"><label class="form-label">Ölü Yavru</label><input type="number" class="form-control" name="yuva_ici_olu_yavru"></div><div class="col-md-3"><label class="form-label">Boş Kabuk</label><input type="number" class="form-control" name="bos_kabuk_sayisi"></div><div class="col-md-3"><label class="form-label">Döllenmemiş Yumurta</label><input type="number" class="form-control" name="dollenmemis_yumurta_sayisi"></div><div class="col-md-3"><label class="form-label">Toplam Ölü Embriyo</label><input type="number" class="form-control" name="toplam_olu_embriyo"></div></div></div></div></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary" id="kaydetBtn">Kaydet</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="guncelleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Yuva Bilgilerini Güncelle</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button></div>
+                <div class="modal-body">
+                    <p><b>Hedef Yuva:</b> <span id="hedefYuvaSpan"></span></p>
+                    <form id="guncelleForm"><input type="hidden" id="guncelleYuvaId" name="id"><input type="hidden" id="guncelleYuvaYil" name="yil"><div class="mb-3"><label for="yeniDurum" class="form-label">Yeni Predasyon Durumu</label><select class="form-select" id="yeniDurum" name="durum"><option value="yok">Yok</option><option value="yari">Yarı Predasyon</option><option value="tam">Tam Predasyon</option><option value="bilinmiyor">Bilinmiyor</option></select></div></form>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary" id="guncelleKaydetBtn">Güncelle</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="analizModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="analizModalTitle">Analiz Sonuçları</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button></div>
+                <div class="modal-body" id="analizModalBody"></div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scriptler -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    window.addEventListener('load', function() {
+        try {
+            const yuvaEkleModal = new bootstrap.Modal(document.getElementById('yuvaEkleModal'));
+            const guncelleModal = new bootstrap.Modal(document.getElementById('guncelleModal'));
+            const analizModal = new bootstrap.Modal(document.getElementById('analizModal'));
+            const solPanelListe = document.querySelector('.left-panel-content.list-group');
+            let tumYuvalarData = [];
+
+            const leafletMap = L.map('map').setView([36.27, 29.29], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO' }).addTo(leafletMap);
+            let allMarkersLayer = L.layerGroup().addTo(leafletMap);
+            const customMarkerIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+
+            function arayuzuGuncelle(yuvalar) {
+                solPanelListe.innerHTML = '';
+                if (!yuvalar || yuvalar.length === 0) {
+                    solPanelListe.innerHTML = '<p class="text-muted p-2">Veri bulunamadı.</p>';
+                } else {
+                    yuvalar.forEach(yuva => {
+                        solPanelListe.insertAdjacentHTML('beforeend', `<div class="list-group-item" data-id="${yuva.id}" data-yil="${yuva.yil}" data-lat="${yuva.lat}" data-lon="${yuva.lon}"><div class="list-item-info"><b>[${yuva.yil}] ID: ${yuva.id}</b><small class="d-block text-muted">Kumsal: ${yuva.kumsal || 'Belirtilmemiş'}</small></div><div class="list-item-actions"><button class="btn btn-warning btn-sm btn-guncelle" title="Güncelle" aria-label="Yuvayı Güncelle"><i class="bi bi-pencil-square"></i></button><button class="btn btn-danger btn-sm btn-sil" title="Sil" aria-label="Yuvayı Sil"><i class="bi bi-trash"></i></button></div></div>`);
+                    });
+                }
+                allMarkersLayer.clearLayers();
+                yuvalar.forEach(yuva => {
+                    if (yuva.lat && yuva.lon) {
+                        L.marker([yuva.lat, yuva.lon], { icon: customMarkerIcon }).bindPopup(`<h6>[${yuva.yil}] Yuva ID: ${yuva.id}</h6><p>Kumsal: ${yuva.kumsal || 'N/A'}<br>Tarih: ${yuva.yuva_tarihi}</p>`).addTo(allMarkersLayer);
+                    }
+                });
+            }
+
+            function ilkVeriyiYukle() {
+                fetch("{{ url_for('api_tum_yuvalari_getir') }}").then(r => r.json()).then(d => {
+                    if (d.success) { tumYuvalarData = d.yuvalar; arayuzuGuncelle(tumYuvalarData); }
+                });
+            }
+
+            document.getElementById('aramaKutusu').addEventListener('input', () => {
+                const metin = document.getElementById('aramaKutusu').value.toLowerCase().trim();
+                const kriter = document.getElementById('aramaKriteri').value;
+                const filtrelenmis = tumYuvalarData.filter(yuva => {
+                    if (!metin) return true;
+                    const val = String(yuva[kriter.toLowerCase()] || '').toLowerCase();
+                    if (kriter === 'Tumu') return Object.values(yuva).some(v => String(v).toLowerCase().includes(metin));
+                    return val.includes(metin);
+                });
+                arayuzuGuncelle(filtrelenmis);
+            });
+
+            document.getElementById('yuvaEkleBtn').addEventListener('click', () => { document.getElementById('yuvaEkleForm').reset(); yuvaEkleModal.show(); });
+            document.getElementById('kaydetBtn').addEventListener('click', () => {
+                const form = document.getElementById('yuvaEkleForm');
+                if (!form.checkValidity()) { form.reportValidity(); return; }
+                fetch("{{ url_for('api_yuva_ekle') }}", { method: 'POST', body: new FormData(form) }).then(r => r.json()).then(d => {
+                    alert(d.message); if (d.success) { yuvaEkleModal.hide(); ilkVeriyiYukle(); }
+                });
+            });
+            document.getElementById('gpsBulBtn').addEventListener('click', function() {
+                const btn = this; if (!navigator.geolocation) return alert('Tarayıcınız konum servisini desteklemiyor.');
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; btn.disabled = true;
+                navigator.geolocation.getCurrentPosition(p => {
+                    document.getElementById('yuvaLat').value = p.coords.latitude.toFixed(6);
+                    document.getElementById('yuvaLon').value = p.coords.longitude.toFixed(6);
+                    btn.innerHTML = '📍 Al'; btn.disabled = false;
+                }, e => { alert('Konum alınamadı: ' + e.message); btn.innerHTML = '📍 Al'; btn.disabled = false; }, { enableHighAccuracy: true, timeout: 10000 });
+            });
+            document.getElementById('guncelleKaydetBtn').addEventListener('click', () => {
+                fetch("{{ url_for('api_durum_guncelle') }}", { method: 'POST', body: new FormData(document.getElementById('guncelleForm')) }).then(r => r.json()).then(d => {
+                    alert(d.message); if (d.success) { guncelleModal.hide(); ilkVeriyiYukle(); }
+                });
+            });
+            document.getElementById('ozetRaporBtn').addEventListener('click', () => {
+                const body = document.getElementById('analizModalBody'); body.innerHTML = '<div class="text-center p-3"><div class="spinner-border"></div></div>';
+                document.getElementById('analizModalTitle').textContent = 'Genel Özet Raporu'; analizModal.show();
+                fetch("{{ url_for('api_ozet_rapor') }}").then(r => r.json()).then(d => { body.innerHTML = d.success ? d.html : `<div class="alert alert-danger">${d.message}</div>`; });
+            });
+            document.getElementById('karsilastirBtn').addEventListener('click', () => {
+                const body = document.getElementById('analizModalBody'); body.innerHTML = '<div class="text-center p-3"><div class="spinner-border"></div></div>';
+                document.getElementById('analizModalTitle').textContent = 'Yıllık Karşılaştırma'; analizModal.show();
+                fetch("{{ url_for('api_yillari_getir') }}").then(r => r.json()).then(d => {
+                    if(d.success && d.yillar.length > 1){
+                        let options = d.yillar.map(y => `<option value="${y}">${y}</option>`).join('');
+                        body.innerHTML = `<div class="row g-3 align-items-end"><div class="col"><label class="form-label">Grup 1</label><select id="yil1" class="form-select">${options}</select></div><div class="col"><label class="form-label">Grup 2</label><select id="yil2" class="form-select">${options}</select></div><div class="col-auto"><button id="karsilastirYapBtn" class="btn btn-primary">Karşılaştır</button></div></div><hr><div id="karsilastirmaSonuc"></div>`;
+                        document.getElementById('yil2').selectedIndex = 1;
+                    } else { body.innerHTML = '<div class="alert alert-warning">Karşılaştırma için en az 2 farklı yıla ait veri bulunmalıdır.</div>'; }
+                });
+            });
+            document.getElementById('simulasyonBtn').addEventListener('click', () => alert('Simülasyon özelliği yapım aşamasındadır.'));
+
+            solPanelListe.addEventListener('click', e => {
+                const item = e.target.closest('.list-group-item'); if (!item) return;
+                const id = item.dataset.id, yil = item.dataset.yil;
+                if (e.target.closest('.list-item-info')) { leafletMap.flyTo([item.dataset.lat, item.dataset.lon], 18); }
+                if (e.target.closest('.btn-sil')) {
+                    if (confirm(`[${yil}] ID'li ${id} nolu yuvayı silmek istediğinizden emin misiniz?`)) {
+                        fetch("{{ url_for('api_yuva_sil') }}", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, yil }) }).then(r => r.json()).then(d => {
+                            alert(d.message); if (d.success) { ilkVeriyiYukle(); }
+                        });
+                    }
+                }
+                if (e.target.closest('.btn-guncelle')) {
+                    document.getElementById('hedefYuvaSpan').textContent = `[${yil}] - ID: ${id}`;
+                    document.getElementById('guncelleYuvaId').value = id;
+                    document.getElementById('guncelleYuvaYil').value = yil;
+                    guncelleModal.show();
+                }
+            });
+            document.getElementById('analizModalBody').addEventListener('click', e => {
+                if(e.target && e.target.id === 'karsilastirYapBtn'){
+                    const yil1 = document.getElementById('yil1').value, yil2 = document.getElementById('yil2').value;
+                    if(yil1 === yil2) return alert("Lütfen iki farklı yıl seçin.");
+                    const sonucDiv = document.getElementById('karsilastirmaSonuc');
+                    sonucDiv.innerHTML = '<div class="text-center p-2"><div class="spinner-border spinner-border-sm"></div></div>';
+                    fetch(`{{ url_for("api_karsilastir") }}?yil1=${yil1}&yil2=${yil2}`).then(r => r.json()).then(d => {
+                        sonucDiv.innerHTML = d.success ? d.html : `<p class="text-danger">${d.message}</p>`;
+                    });
+                }
+            });
+
+            ilkVeriyiYukle();
+        } catch(e) {
+            console.error("Script bloğunda kritik bir hata oluştu:", e);
+            document.body.innerHTML = `<div class="alert alert-danger m-5"><h1>Hata</h1><p>Sayfa yüklenirken önemli bir hata oluştu. Lütfen geliştirici konsolunu kontrol edin.</p><pre>${e.stack}</pre></div>`;
+        }
+    });
+    </script>
+</body>
+</html>
